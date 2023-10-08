@@ -161,7 +161,7 @@ async def poker(interaction: discord.Interaction, details: str):
         pass
 
     await create_fields(embed)
-    await interaction.response.send_message(embed=embed, view=PersistentView())
+    await interaction.response.send_message(content="@everyone", embed=embed, view=PersistentView(), allowed_mentions=discord.AllowedMentions(everyone=True))
 
     with open('prev_message.txt', 'w') as outp:
         outp.write(str(channel.last_message_id))
@@ -169,7 +169,7 @@ async def poker(interaction: discord.Interaction, details: str):
 
 @client.event
 async def on_message(message):
-    # if message is from baidbot, ignore all other if statements
+    # if message is from pokerbot, ignore all other if statements
     if message.author == client.user:
         return
 
