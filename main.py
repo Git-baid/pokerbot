@@ -4,15 +4,11 @@ from discord.ui import Button, View
 
 from DiscordBotToken import BotToken
 
+import json
+
 intents = discord.Intents().all()
 intents.message_content = True
 intents.members = True
-
-yes_list = []
-no_list = []
-maybe_list = []
-
-interaction_list = []
 
 thumbnail = "https://cdn.discordapp.com/attachments/1072108039844397078/1157887619401777183/8336952.png?ex=651a3e60&is=6518ece0&hm=c7e1e31808d080e3d1b70539d828aef5e6c9f7a0946fec51c6444802ce807970&"
 # test channel
@@ -37,12 +33,37 @@ async def disable_prev_buttons():
         Button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='3', emoji='\U00002753', disabled=True))
     await message.edit(view=view)
 
+async def add_to_list(target_user_name, target_list_name):
+    data = {}
+    with open('data.json', 'r') as f:
+        data = json.load(f)
+
+    if target_user_name not in data[target_list_name]:
+        data[target_list_name].append(target_user_name)
+
+        for list, names in data.items():
+            if target_user_name in names and list != target_list_name:
+                data[list].remove(target_user_name)
+    else:
+        data[target_list_name].remove(target_user_name)
+    
+    
+    with open('data.json', 'w') as f:
+        json.dump(data, f, indent=4)
 
 async def create_fields(embed):
     yes_str = ""
     no_str = ""
     maybe_str = ""
+    data = {}
 
+    with open('data.json', 'r') as f:
+        data = json.load(f)
+
+    yes_list = data["yes_list"]
+    no_list = data["no_list"]
+    maybe_list = data["maybe_list"]
+    
     for i in yes_list:
         yes_str += i + "\n"
     for i in no_list:
@@ -68,51 +89,21 @@ class PersistentView(discord.ui.View):
 
     @discord.ui.button(label='Yes', style=discord.ButtonStyle.green, custom_id='1', emoji='\U00002705')
     async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
-        button_presser = interaction.user.display_name
-
-        for i in no_list:
-            if i == button_presser:
-                no_list.remove(i)
-        for i in maybe_list:
-            if i == button_presser:
-                maybe_list.remove(i)
-
-        if button_presser not in yes_list:
-            yes_list.append(button_presser)
+        await add_to_list(interaction.user.display_name, "yes_list")
 
         await create_fields(interaction.message.embeds[0])
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
 
     @discord.ui.button(label='No', style=discord.ButtonStyle.red, custom_id='2', emoji='\U0000274E')
     async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
-        button_presser = interaction.user.display_name
-
-        for i in yes_list:
-            if i == button_presser:
-                yes_list.remove(i)
-        for i in maybe_list:
-            if i == button_presser:
-                maybe_list.remove(i)
-
-        if button_presser not in no_list:
-            no_list.append(button_presser)
+        await add_to_list(interaction.user.display_name, "no_list")
 
         await create_fields(interaction.message.embeds[0])
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
 
     @discord.ui.button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='3', emoji='\U00002753')
     async def maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
-        button_presser = interaction.user.display_name
-
-        for i in yes_list:
-            if i == button_presser:
-                yes_list.remove(i)
-        for i in no_list:
-            if i == button_presser:
-                no_list.remove(i)
-
-        if button_presser not in maybe_list:
-            maybe_list.append(button_presser)
+        await add_to_list(interaction.user.display_name, "maybe_list")
 
         await create_fields(interaction.message.embeds[0])
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
@@ -144,13 +135,9 @@ async def ping(interaction: discord.Interaction):
 
 @client.tree.command(name="poker_create", description="Create a poker event")
 async def poker(interaction: discord.Interaction, details: str):
-    yes_list.clear()
-    no_list.clear()
-    maybe_list.clear()
-
     channel = interaction.guild.get_channel(poker_channel)
 
-    details += "\n---------------------------------------"  # readability
+    details += "\n--------------------"  # readability
 
     embed = discord.Embed(title="Poker Roll Call", color=discord.Color.red(), description=details)
     embed.set_thumbnail(url=thumbnail)
@@ -166,6 +153,9 @@ async def poker(interaction: discord.Interaction, details: str):
     with open('prev_message.txt', 'w') as outp:
         outp.write(str(channel.last_message_id))
 
+    with open('data.json', 'w') as f:
+        # set all dictionaries in file to empty
+        json.dump({"yes_list": [], "no_list": [], "maybe_list": []}, f)
 
 @client.event
 async def on_message(message):
