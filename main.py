@@ -10,33 +10,42 @@ intents = discord.Intents().all()
 intents.message_content = True
 intents.members = True
 
-thumbnail = "https://cdn.discordapp.com/attachments/1072108039844397078/1157887619401777183/8336952.png?ex=651a3e60&is=6518ece0&hm=c7e1e31808d080e3d1b70539d828aef5e6c9f7a0946fec51c6444802ce807970&"
-# test channel
-#poker_channel = 1072251242740461648
-# active channel
-poker_channel = 1145254696601272401
-guild_id = 1072108038577725551
+poker_thumbnail = "https://cdn.discordapp.com/attachments/1072108039844397078/1157887619401777183/8336952.png?ex=651a3e60&is=6518ece0&hm=c7e1e31808d080e3d1b70539d828aef5e6c9f7a0946fec51c6444802ce807970&"
+potluck_thumbnail = "https://cdn.discordapp.com/attachments/434752033552203793/1442369438832922745/image.png?ex=69252eb8&is=6923dd38&hm=ce942c34170a8c74681ee4a5d5dd1a7c9c7ef8c3041828a730aeb28d577dd212&"
 
+poker_data_file = "/home/baid/Desktop/DiscordBots/pokerbotDiscord/pokerbot/poker_data.json"
+potluck_data_file = "/home/baid/Desktop/DiscordBots/pokerbotDiscord/pokerbot/potluck_data.json"
 
-async def disable_prev_buttons():
-    with open('prev_message.txt', 'r') as inp:
-        message_id = int(inp.read())
-
-    message = await client.get_channel(poker_channel).fetch_message(int(message_id))
-
+async def disable_prev_buttons(roll_call_type):
+    message_id = None
+    channel_id = None
+    if roll_call_type == "poker":
+        with open('prev_poker_message.txt', 'r') as inp:
+            fin = json.load(inp)
+            channel_id = int(fin["channel_id"])
+            message_id = int(fin["message_id"])
+    if roll_call_type == "potluck":
+        with open('prev_potluck_message.txt', 'r') as inp:
+            fin = json.load(inp)
+            channel_id = int(fin["channel_id"])
+            message_id = int(fin["message_id"])
+    message = await client.get_channel(channel_id).fetch_message(message_id)
+    print(message)
     view = discord.ui.View.from_message(message)
     view.clear_items()
-    view.add_item(
-        Button(label='Yes', style=discord.ButtonStyle.green, custom_id='1', emoji='\U00002705', disabled=True))
-    view.add_item(Button(label='No', style=discord.ButtonStyle.red, custom_id='2', emoji='\U0000274E', disabled=True))
-    view.add_item(
-        Button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='3', emoji='\U00002753', disabled=True))
+    view.add_item(Button(label='Yes', style=discord.ButtonStyle.green, custom_id=f"{roll_call_type}_yes", emoji='\U00002705', disabled=True))
+    view.add_item(Button(label='No', style=discord.ButtonStyle.red, custom_id=f"{roll_call_type}_no", emoji='\U0000274E', disabled=True))
+    view.add_item(Button(label='Maybe', style=discord.ButtonStyle.grey, custom_id=f"{roll_call_type}_maybe", emoji='\U00002753', disabled=True))
     await message.edit(view=view)
 
-async def add_to_list(target_user_name, target_list_name):
+async def add_to_list(target_user_name, target_list_name, roll_call_type):
     data = {}
-    with open('data.json', 'r') as f:
-        data = json.load(f)
+    if roll_call_type == "poker":
+        with open(poker_data_file, 'r') as f:
+            data = json.load(f)
+    if roll_call_type == "potluck":
+        with open(potluck_data_file, 'r') as f:
+            data = json.load(f)
 
     if target_user_name not in data[target_list_name]:
         data[target_list_name].append(target_user_name)
@@ -47,18 +56,25 @@ async def add_to_list(target_user_name, target_list_name):
     else:
         data[target_list_name].remove(target_user_name)
     
-    
-    with open('data.json', 'w') as f:
-        json.dump(data, f, indent=4)
+    if roll_call_type == "poker":
+        with open(poker_data_file, 'w') as f:
+            json.dump(data, f, indent=4)
+    if roll_call_type == "potluck":
+        with open(potluck_data_file, 'w') as f:
+            json.dump(data, f, indent=4)
 
-async def create_fields(embed):
+async def create_fields(embed, roll_call_type):
     yes_str = ""
     no_str = ""
     maybe_str = ""
     data = {}
 
-    with open('data.json', 'r') as f:
-        data = json.load(f)
+    if roll_call_type == "poker":
+        with open(poker_data_file, 'r') as f:
+            data = json.load(f)
+    if roll_call_type == "potluck":
+        with open(potluck_data_file, 'r') as f:
+            data = json.load(f)
 
     yes_list = data["yes_list"]
     no_list = data["no_list"]
@@ -83,30 +99,58 @@ async def create_fields(embed):
                     , inline=True)
 
 
-class PersistentView(discord.ui.View):
+class PokerView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label='Yes', style=discord.ButtonStyle.green, custom_id='1', emoji='\U00002705')
-    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await add_to_list(interaction.user.display_name, "yes_list")
-
-        await create_fields(interaction.message.embeds[0])
+    # poker buttons
+    @discord.ui.button(label='Yes', style=discord.ButtonStyle.green, custom_id='poker_yes', emoji='\U00002705')
+    async def poker_yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "yes_list", "poker")
+        await create_fields(interaction.message.embeds[0], "poker")
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
 
-    @discord.ui.button(label='No', style=discord.ButtonStyle.red, custom_id='2', emoji='\U0000274E')
-    async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await add_to_list(interaction.user.display_name, "no_list")
+    @discord.ui.button(label='No', style=discord.ButtonStyle.red, custom_id='poker_no', emoji='\U0000274E')
+    async def poker_no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "no_list", "poker")
 
-        await create_fields(interaction.message.embeds[0])
+        await create_fields(interaction.message.embeds[0], "poker")
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
 
-    @discord.ui.button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='3', emoji='\U00002753')
-    async def maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await add_to_list(interaction.user.display_name, "maybe_list")
+    @discord.ui.button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='poker_maybe', emoji='\U00002753')
+    async def poker_maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "maybe_list", "poker")
 
-        await create_fields(interaction.message.embeds[0])
+        await create_fields(interaction.message.embeds[0], "poker")
         await interaction.response.edit_message(embed=interaction.message.embeds[0])
+
+
+class PotluckView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    # potluck buttons
+    @discord.ui.button(label='Yes', style=discord.ButtonStyle.green, custom_id='potluck_yes', emoji='\U00002705')
+    async def potluck_yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "yes_list", "potluck")
+
+        await create_fields(interaction.message.embeds[0], "potluck")
+        await interaction.response.edit_message(embed=interaction.message.embeds[0])
+
+    @discord.ui.button(label='No', style=discord.ButtonStyle.red, custom_id='potluck_no', emoji='\U0000274E')
+    async def potluck_no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "no_list", "potluck")
+
+        await create_fields(interaction.message.embeds[0], "potluck")
+        await interaction.response.edit_message(embed=interaction.message.embeds[0])
+
+    @discord.ui.button(label='Maybe', style=discord.ButtonStyle.grey, custom_id='potluck_maybe', emoji='\U00002753')
+    async def potluck_maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await add_to_list(interaction.user.display_name, "maybe_list", "potluck")
+
+        await create_fields(interaction.message.embeds[0], "potluck")
+        await interaction.response.edit_message(embed=interaction.message.embeds[0])
+    
 
 
 class PersistentViewBot(commands.Bot):
@@ -114,7 +158,8 @@ class PersistentViewBot(commands.Bot):
         super().__init__(command_prefix=commands.when_mentioned_or('.'), intents=intents)
 
     async def setup_hook(self) -> None:
-        self.add_view(view=PersistentView())
+        self.add_view(view=PokerView())
+        self.add_view(view=PotluckView())
 
 
 client = PersistentViewBot()
@@ -132,30 +177,52 @@ async def ping(interaction: discord.Interaction):
     bot_latency = round(client.latency * 1000)
     await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
-
+# Create poker roll call
 @client.tree.command(name="poker_create", description="Create a poker event")
 async def poker(interaction: discord.Interaction, details: str):
-    channel = interaction.guild.get_channel(poker_channel)
+    channel = interaction.channel
 
     details += "\n--------------------"  # readability
 
     embed = discord.Embed(title="Poker Roll Call", color=discord.Color.red(), description=details)
-    embed.set_thumbnail(url=thumbnail)
+    embed.set_thumbnail(url=poker_thumbnail)
 
-    try:
-        await disable_prev_buttons()
-    except:
-        pass
-
-    await create_fields(embed)
-    await interaction.response.send_message(content="@everyone", embed=embed, view=PersistentView(), allowed_mentions=discord.AllowedMentions(everyone=True))
-
-    with open('prev_message.txt', 'w') as outp:
-        outp.write(str(channel.last_message_id))
-
-    with open('data.json', 'w') as f:
+    await disable_prev_buttons("poker")
+    
+    with open(poker_data_file, 'w') as f:
         # set all dictionaries in file to empty
         json.dump({"yes_list": [], "no_list": [], "maybe_list": []}, f)
+        
+    await create_fields(embed, "poker")
+    await interaction.response.send_message(content="@everyone", embed=embed, view=PokerView(), allowed_mentions=discord.AllowedMentions(everyone=True))
+
+    with open('prev_poker_message.txt', 'w') as outp:
+        json.dump({"channel_id": channel.id, "message_id": channel.last_message_id}, outp)
+
+# Create potluck roll call
+@client.tree.command(name="potluck_create", description="Create a potluck event")
+async def potluck(interaction: discord.Interaction, details: str):
+    channel = interaction.channel
+
+    details += "\n--------------------"  # readability
+
+    embed = discord.Embed(title="Potluck Roll Call", color=discord.Color.blue(), description=details)
+    embed.set_thumbnail(url=potluck_thumbnail)
+
+    try:
+        await disable_prev_buttons("potluck")
+    except:
+        pass
+    
+    with open(potluck_data_file, 'w') as f:
+        # set all dictionaries in file to empty
+        json.dump({"yes_list": [], "no_list": [], "maybe_list": []}, f)
+        
+    await create_fields(embed, "potluck")
+    await interaction.response.send_message(content="@everyone", embed=embed, view=PotluckView(), allowed_mentions=discord.AllowedMentions(everyone=True))
+
+    with open('prev_potluck_message.txt', 'w') as outp:
+        json.dump({"channel_id": channel.id, "message_id": channel.last_message_id}, outp)
 
 @client.event
 async def on_message(message):
@@ -164,7 +231,7 @@ async def on_message(message):
         return
 
     # convert message to all lowercase
-    message.content = message.content.lower()
+    # message.content = message.content.lower()
 
 
 client.run(BotToken)
