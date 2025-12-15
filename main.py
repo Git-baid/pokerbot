@@ -30,7 +30,7 @@ async def disable_prev_buttons(roll_call_type):
             channel_id = int(fin["channel_id"])
             message_id = int(fin["message_id"])
     message = await client.get_channel(channel_id).fetch_message(message_id)
-    print(message)
+
     view = discord.ui.View.from_message(message)
     view.clear_items()
     view.add_item(Button(label='Yes', style=discord.ButtonStyle.green, custom_id=f"{roll_call_type}_yes", emoji='\U00002705', disabled=True))
@@ -187,8 +187,11 @@ async def poker(interaction: discord.Interaction, details: str):
     embed = discord.Embed(title="Poker Roll Call", color=discord.Color.red(), description=details)
     embed.set_thumbnail(url=poker_thumbnail)
 
-    await disable_prev_buttons("poker")
-    
+    try:
+        await disable_prev_buttons("poker")
+    except:
+        pass
+
     with open(poker_data_file, 'w') as f:
         # set all dictionaries in file to empty
         json.dump({"yes_list": [], "no_list": [], "maybe_list": []}, f)
